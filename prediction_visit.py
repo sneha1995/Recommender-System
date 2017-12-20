@@ -389,47 +389,71 @@ data1 =[l for l in readGz("train.json.gz")]
 # In[ ]:
 
 
-category_business = {}
-category_user = {}
-
-for d in data1:
-    if d['businessID'] in category_business:
-        category_business[d['businessID']].update(d['categories'])
-    else:
-        category_business[d['businessID']] = set()
-        category_business[d['businessID']].update(d['categories'])
+users = {}
+business = {}
+for d in train:
     
-    if d['userID'] in category_user:
-        category_user[d['userID']].update(d['categories'])
+    if d['userID'] in users:
+        users[d['userID']].add(d['businessID'])
     else:
-        category_user[d['userID']] = set()
-        category_user[d['userID']].update(d['categories'])
+        users[d['userID']] = set()
+        users[d['userID']].add(d['businessID'])
+    
+    if d['businessID'] in business:
+        business[d['businessID']].add(d['userID'])
+    else:
+        business[d['businessID']] = set()
+        business[d['businessID']].add(d['userID'])
 
 
 # In[ ]:
 
 
-predictions = open("predictions_Visit_mine.txt", 'w')
+def similarity(i, j):
+    num = len(users[i].intersection(users[j]))
+    den = (len(users[i])*len(users[j]))**0.5
+    return 1.0 * num / den
+
+
+# In[ ]:
+
+
+def predict(u,b):
+    val =0
+    if u in users and b in business:
+        busi_visited = users[u]
+    
+        u_s = set()
+        for i in busi_visited:
+            u_s.update(business[i])
+            u_s -= set(u)
+        
+        pred = set()
+        for j in u_s:
+                
+            if similarity(u,j) > 0.005:
+                pred.update(users[j])
+    
+        val = 1 if b in pred else 0
+    return val
+
+
+# In[ ]:
+
+
+predictions = open("predictions_Visit_mine_1.txt", 'w')
 for l in open("pairs_Visit.txt"):
     if l.startswith("userID"):
         #header
         predictions.write(l)
         continue
     
-    u,i = l.strip().split('-')
-    user = set()
-    busi = set()
-    if u in category_user :
-        user = category_user[u]
-    if i in category_business:
-        business = category_business[i]
-    
-    common = set.intersection(user, business)
-    #print( common)
-    if len(common) !=0: 
-        predictions.write(u + '-' + i + ",1\n")
+    u,b = l.strip().split('-')
+    val = predict(u,b)
+    if val==1: 
+        predictions.write(u + '-' + b + ",1\n")
     else:
-        predictions.write(u + '-' + i + ",0\n")
+        predictions.write(u + '-' + b + ",0\n")
 
 predictions.close()
 
